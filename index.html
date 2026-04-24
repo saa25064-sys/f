@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FUGITIVE - CYBERPUNK BULLET HELL -</title>
+    <style>
+        /* =========================================
+           CSS Styles (最適化済み・サイバーパンク)
+           ========================================= */
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+JP:wght@400;700&display=swap');
+
+        :root {
+            --bg: #050505;
+            --fg: #ffffff;
+            --accent: #ff0033;
+            --dim: #666666;
+            --sys: 'Share Tech Mono', monospace;
+            --txt: 'Noto Sans JP', sans-serif;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-user-drag: none; }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #000; color: var(--fg);
+            font-family: var(--sys); overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+            touch-action: none; cursor: default;
+        }
+
+        /* Game Area */
+        #game-wrapper {
+            position: relative; width: 800px; height: 600px;
+            background-color: var(--bg); border: 2px solid var(--dim);
+            box-shadow: 0 0 40px rgba(255, 255, 255, 0.05);
+            overflow: hidden; cursor: none;
+        }
+        
+        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+        /* CRT Overlay - 軽量化版 */
+        #game-wrapper::after {
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 2px, transparent 2px, transparent 4px);
+            z-index: 90; pointer-events: none;
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.95); z-index: 100;
+            padding: 20px; text-align: center;
+        }
+        .screen.active { display: flex; }
+
+        .title-text {
+            font-size: 70px; font-weight: bold; letter-spacing: 15px; margin-bottom: 5px;
+            color: var(--fg); text-transform: uppercase; text-shadow: 2px 2px 0 var(--dim);
+        }
+        .subtitle { font-size: 14px; color: var(--dim); margin-bottom: 40px; letter-spacing: 6px; }
+        h2 { font-size: 24px; margin-bottom: 25px; border-bottom: 1px solid var(--fg); padding-bottom: 10px; letter-spacing: 3px; font-weight: normal;}
+        
+        .btn-group { display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; }
+        
+        /* Buttons */
+        button {
+            background: rgba(10,10,10,0.9); border: 1px solid var(--fg); color: var(--fg);
+            font-family: var(--sys); font-size: 18px; padding: 12px 20px;
+            cursor: pointer; text-transform: uppercase; width: 350px; letter-spacing: 2px;
+            transition: all 0.15s; position: relative; overflow: hidden;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        button::before { content: '>'; position: absolute; left: -20px; transition: left 0.15s; opacity: 0; top: 50%; transform: translateY(-50%); }
+        button:hover { background: var(--fg); color: var(--bg); padding-left: 30px;}
+        button:hover::before { left: 10px; opacity: 1; }
+        button:hover .sub-desc { color: #333; }
+        button:disabled { border-color: #333; color: #444; cursor: not-allowed; background: transparent; }
+        button:disabled:hover { padding-left: 20px; background: transparent; color: #444; }
+        button:disabled::before { display: none; }
+        .sub-desc { font-size: 11px; color: var(--dim); margin-top: 4px; text-transform: none; font-family: var(--txt); transition: color 0.15s;}
+        .btn-small { width: auto; min-width: 120px; padding: 8px 15px; font-size: 14px; }
+
+        /* Emblems */
+        #emblem-container { position: absolute; bottom: 30px; display: flex; gap: 15px; }
+        .emblem {
+            width: 40px; height: 40px; border: 1px solid var(--dim); color: var(--dim);
+            display: flex; justify-content: center; align-items: center; font-size: 20px; cursor: help;
+            transition: all 0.3s;
+        }
+        .emblem.unlocked { border-color: var(--fg); color: var(--bg); background: var(--fg); box-shadow: 0 0 10px rgba(255,255,255,0.2); }
+        .emblem-hint {
+            position: absolute; bottom: 85px; font-size: 14px; color: var(--fg); font-family: var(--txt);
+            background: rgba(0,0,0,0.9); padding: 8px 12px; border: 1px solid var(--fg);
+            opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: pre-line; text-align: center; width: max-content; max-width: 250px;
+        }
+        .emblem:hover .emblem-hint { opacity: 1; }
+
+        /* HUD: 背景グラデーションを追加して視認性向上 */
+        #hud-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 50; display: none;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 12%, transparent 20%);
+        }
+        .hud-header {
+            position: absolute; top: 10px; left: 15px; right: 15px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .hud-box { display: flex; flex-direction: column; min-width: 250px; }
+        .hud-right { align-items: flex-end; }
+        .hud-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; letter-spacing: 1px; color: #fff;}
+        .hud-sub { font-size: 12px; color: #bbb; margin-bottom: 5px;}
+        .hp-container { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; max-width: 200px;}
+        .hp-block { width: 16px; height: 12px; border: 1px solid #fff; background: rgba(0,0,0,0.8); transform: skewX(-20deg); }
+        .hp-block.filled { background: #fff; box-shadow: 0 0 5px #fff; }
+        .bar-bg { width: 160px; height: 8px; background: rgba(0,0,0,0.8); border: 1px solid #fff; margin-top: 5px; transform: skewX(-20deg);}
+        .bar-fg { height: 100%; background: #fff; transition: width 0.1s linear; }
+        .bar-accent { background: var(--accent); }
+
+        /* Dialog Box (DOM Base - はみ出し完全防止) */
+        #dialog-wrapper {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 720px; min-height: 140px;
+            background: rgba(0, 0, 0, 0.95); border: 2px solid var(--fg);
+            display: none; padding: 20px 25px; box-sizing: border-box;
+            color: var(--fg); pointer-events: auto; cursor: pointer; z-index: 80;
+            box-shadow: 4px 4px 0 var(--dim); clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+        }
+        .dialog-header { display: flex; align-items: center; margin-bottom: 12px; border-bottom: 1px dashed var(--dim); padding-bottom: 8px; }
+        .dialog-icon { font-size: 22px; width: 40px; text-align: center; font-weight: bold; }
+        .dialog-name { font-size: 18px; font-weight: bold; margin-left: 10px; letter-spacing: 2px; }
+        #msg-text { 
+            font-family: var(--txt); font-size: 16px; line-height: 1.6; color: #fff; 
+            white-space: pre-wrap; word-break: break-word; flex-grow: 1; overflow-y: hidden;
+        }
+        .click-indicator { position: absolute; bottom: 10px; right: 20px; font-size: 14px; color: #aaa; animation: blink 1s infinite steps(2); }
+        @keyframes blink { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+        /* Warning Cutin */
+        #cutin-layer {
+            position: absolute; top: 40%; left: 0; width: 100%; height: 110px;
+            background: rgba(20,0,0,0.95); color: var(--fg);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 70; opacity: 0; pointer-events: none; transition: opacity 0.15s, transform 0.15s;
+            border-top: 4px solid var(--accent); border-bottom: 4px solid var(--accent);
+            transform: scaleY(0); transform-origin: center; box-shadow: 0 0 30px rgba(255,0,51,0.4);
+        }
+        #cutin-layer.active { opacity: 1; transform: scaleY(1); }
+        .cutin-sub { font-size: 14px; letter-spacing: 6px; margin-bottom: 5px; font-weight: bold; color: var(--accent); text-shadow: 1px 1px 0 #000;}
+        .cutin-title { font-size: 30px; font-weight: bold; letter-spacing: 8px; text-shadow: 2px 2px 0 #000; text-transform: uppercase;}
+
+        /* Upgrade Layout */
+        .upgrade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 600px; margin: 20px auto; }
+        .ai-comment {
+            font-family: var(--txt); font-size: 15px; border-left: 4px solid var(--fg); padding: 15px 20px; 
+            margin-bottom: 10px; width: 100%; max-width: 650px; line-height: 1.6; background: rgba(20,20,20,0.8);
+            min-height: 4em; text-align: left; color: #ddd; word-break: break-word;
+        }
+        .btn-nothing {
+            position: absolute; bottom: 20px; right: 20px; font-size: 12px; padding: 5px 10px; width: auto;
+            background: transparent; border: 1px dashed var(--dim); color: var(--dim); cursor: pointer;
+        }
+        .btn-nothing:hover { border-color: var(--fg); color: var(--fg); background: transparent; padding-left: 10px;}
+        .btn-nothing::before { display: none; }
+
+        /* Custom Crosshair */
+        #crosshair {
+            position: absolute; width: 24px; height: 24px; pointer-events: none; z-index: 200; display: none;
+            border: 1px solid rgba(255,255,255,0.4); border-radius: 50%;
+            transform: translate(-50%, -50%); transition: width 0.1s, height 0.1s;
+        }
+        #crosshair .vline { position: absolute; left: 50%; top: 0; width: 2px; height: 100%; background: rgba(255,255,255,0.8); transform: translateX(-50%); }
+        #crosshair .hline { position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: rgba(255,255,255,0.8); transform: translateY(-50%); }
+        
+        .sys-menu { position: absolute; top: 15px; right: 15px; display: flex; gap: 10px; z-index: 80; pointer-events: auto;}
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div id="crosshair">
+        <div class="vline"></div>
+        <div class="hline"></div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <!-- HUD -->
+    <div id="hud-layer">
+        <div class="hud-header">
+            <div class="hud-box">
+                <div class="hud-title">STELLA <span id="hud-stage" style="color:#aaa; font-size: 12px; margin-left: 10px;"></span></div>
+                <div class="hud-sub">THREAT: <span id="hud-diff" style="color:var(--fg);"></span></div>
+                <div style="font-size: 11px; margin-top: 5px; color: #aaa;">CORE INTEGRITY</div>
+                <div class="hp-container" id="hp-container"></div>
+            </div>
+            <div class="hud-box hud-right">
+                <div class="hud-title" id="phase-label" style="font-size: 14px;">PHASE TIME</div>
+                <div class="bar-bg"><div id="phase-bar" class="bar-fg"></div></div>
+                
+                <div id="boss-hud" style="margin-top: 20px; visibility: hidden; display: flex; flex-direction: column; align-items: flex-end;">
+                    <div class="hud-title" style="color:var(--accent); font-size: 12px; letter-spacing: 2px;">TARGET LOCK</div>
+                    <div class="hud-title" id="boss-name" style="color:var(--fg); margin-top: 2px;"></div>
+                    <div class="bar-bg"><div id="boss-hp-bar" class="bar-fg"></div></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dialog -->
+        <div id="dialog-wrapper">
+            <div class="dialog-header">
+                <div class="dialog-icon" id="msg-icon"></div>
+                <div class="dialog-name" id="msg-name"></div>
+            </div>
+            <div id="msg-text"></div>
+            <div class="click-indicator">▼ NEXT</div>
+        </div>
+    </div>
+
+    <!-- Cutin -->
+    <div id="cutin-layer">
+        <div class="cutin-sub" id="cutin-sub-text">!!! WARNING : SP OVERRIDE !!!</div>
+        <div class="cutin-title" id="cutin-name"></div>
+    </div>
+
+    <!-- Screens -->
+    <!-- Title -->
+    <div id="screen-title" class="screen active">
+        <div class="title-text">FUGITIVE</div>
+        <div class="subtitle">ESCAPE FROM THE SYSTEM // OPTIMIZED</div>
+        <div class="btn-group">
+            <button onclick="UI.showSetup()">INITIALIZE <span class="sub-desc">新規セッション開始</span></button>
+            <button id="btn-resume" style="display:none;" onclick="UI.showResume()">RESTORE LOG <span class="sub-desc">到達層から再開</span></button>
+        </div>
+        <div id="emblem-container"></div>
+        <div id="emblem-hint" class="emblem-hint"></div>
+    </div>
+
+    <!-- Setup -->
+    <div id="screen-setup" class="screen">
+        <h2>BOOT SEQUENCE</h2>
+        <div id="ctrl-select" style="width:100%;">
+            <p class="center-text" style="color:var(--dim);">> SELECT INTERFACE</p>
+            <div class="btn-group">
+                <button onclick="Game.setControl('mouse')">CURSOR SYNC<br><span class="sub-desc">十字カーソルに自機が滑らかにピッタリ追従</span></button>
+                <button onclick="Game.setControl('key')">KEYBOARD I/O<br><span class="sub-desc">WASD / 矢印キー (Shiftで低速)</span></button>
+            </div>
+        </div>
+        
+        <div id="diff-select" style="display:none; width:100%;">
+            <p class="center-text" style="color:var(--dim);">> SELECT THREAT LEVEL</p>
+            <div class="btn-group">
+                <button onclick="Game.start('EASY')">EASY<br><span class="sub-desc">初心者向け。SP時間10秒</span></button>
+                <button onclick="Game.start('NORMAL')">NORMAL<br><span class="sub-desc">標準仕様。SP時間20秒</span></button>
+                <button onclick="Game.start('HARD')">HARD<br><span class="sub-desc">熟練者向け。SP時間30秒</span></button>
+                <button class="danger" id="btn-extra" style="display:none;" onclick="Game.start('EXTRA')">EXTRA<br><span class="sub-desc" style="color:var(--accent);">1ミスでStage1強制送還 / 裏ボス解禁</span></button>
+            </div>
+            <button class="btn-small" style="margin-top:20px; background:transparent; border-color:var(--dim); color:var(--dim);" onclick="UI.backToCtrl()">BACK</button>
+        </div>
+        <button class="btn-small" style="position:absolute; bottom:20px; left:20px; background:transparent; border-color:var(--dim); color:var(--dim);" onclick="UI.showTitle()">TITLE</button>
+    </div>
+
+    <!-- Resume -->
+    <div id="screen-resume" class="screen">
+        <h2>RESTORE LOG</h2>
+        <p class="center-text" style="color:var(--dim);">> JUMP TO ACQUIRED SECTOR</p>
+        <div id="stage-list" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; max-height: 400px; overflow-y:auto; width: 100%; max-width: 600px;"></div>
+        <button class="btn-small" style="position:absolute; bottom:20px; left:20px; background:transparent; border-color:var(--dim); color:var(--dim);" onclick="UI.showTitle()">BACK</button>
+    </div>
+
+    <!-- Upgrade -->
+    <div id="screen-upgrade" class="screen">
+        <h2>SYSTEM OVERRIDE</h2>
+        <div class="ai-comment" id="upgrade-comment"></div>
+        <div class="upgrade-grid">
+            <button onclick="Game.applyUpgrade('atk')" id="up-atk">ATK UP [Lv<span id="lv-atk"></span>]<br><span class="sub-desc">攻撃力・連射速度上昇</span></button>
+            <button onclick="Game.applyUpgrade('def')" id="up-def">DEF UP [Lv<span id="lv-def"></span>]<br><span class="sub-desc">最大HP+1＆被ダメ軽減</span></button>
+            <button onclick="Game.applyUpgrade('shot')" id="up-shot">SPREAD [Lv<span id="lv-shot"></span>]<br><span class="sub-desc">弾が放射状に増加</span></button>
+            <button onclick="Game.applyUpgrade('drop')" id="up-drop">LUCK UP [Lv<span id="lv-drop"></span>]<br><span class="sub-desc">回復出現率向上</span></button>
+        </div>
+        <button class="btn-nothing" onclick="Game.applyUpgrade('none')">何もしない</button>
+        <div style="position:absolute; bottom:20px; left:20px; display:flex; flex-direction:column; align-items:flex-start;">
+            <div style="font-size:11px; color:var(--dim); margin-bottom:5px; font-family: var(--txt);">※オートセーブ完了</div>
+            <button class="btn-small" style="background:transparent; border-color:var(--dim); color:var(--fg);" onclick="Game.manualSaveAndQuit()">SAVE & QUIT</button>
+        </div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="screen-gameover" class="screen">
+        <h1 style="color:var(--accent); text-shadow:0 0 10px var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 10px;">SIGNAL LOST</h1>
+        <div class="ai-comment" id="gameover-comment" style="margin: 30px 0; background:rgba(50,0,0,0.5); border-color:var(--accent);"></div>
+        <p id="gameover-sub" style="color:#aaa; font-size:14px; margin-bottom: 30px; font-family: var(--txt);"></p>
+        <div class="btn-group">
+            <button onclick="Game.retry()">REBOOT <span class="sub-desc">リトライ</span></button>
+            <button onclick="UI.showTitle()" style="background:transparent; border-color:var(--dim); color:var(--fg);">DISCONNECT <span class="sub-desc">タイトルへ</span></button>
+        </div>
+    </div>
+
+    <!-- System Menu (Ingame) -->
+    <div class="sys-menu" id="sys-menu" style="display:none;">
+        <button class="btn-small" onclick="SaveSys.manualSave()" style="padding: 5px 10px; border-width: 1px; font-size: 12px; min-width: auto; background:rgba(0,0,0,0.8);">SAVE</button>
+        <button class="btn-small" onclick="UI.showTitle()" style="padding: 5px 10px; border-width: 1px; font-size: 12px; min-width: auto; background:rgba(0,0,0,0.8);">TITLE</button>
+    </div>
+</div>
+
+<script>
+/**
+ * AUDIO MOCK
+ */
+let actx = null;
+function initAudio() { if(!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } }
+const SFX = {
+    play(freq, dur, vol=0.05, type='square') {
+        if(!actx) return;
+        try {
+            const o = actx.createOscillator(); const g = actx.createGain();
+            o.connect(g); g.connect(actx.destination);
+            let n = actx.currentTime;
+            o.type=type; o.frequency.setValueAtTime(freq,n); o.frequency.exponentialRampToValueAtTime(40,n+dur);
+            g.gain.setValueAtTime(vol,n); g.gain.linearRampToValueAtTime(0,n+dur); o.start(n); o.stop(n+dur);
+        } catch(e){}
+    }
+};
+
+/**
+ * CONSTANTS & CONFIGURATION
+ */
+const C_W = 800; const C_H = 600; // 横長
+
+const ENDINGS = [
+    { id: 'atk', icon: '△', title: '『焦土の玉座』', hint: '武力を以て全てを破壊せよ (ATK特化クリア)' },
+    { id: 'def', icon: '□', title: '『鉄の揺り籠』', hint: 'あらゆる脅威から身を守れ (DEF特化クリア)' },
+    { id: 'bal', icon: '〇', title: '『名もなき逃亡者』', hint: '万物を拡散し、逃げ延びよ (その他クリア)' },
+    { id: 'true', icon: '☆', title: 'True End:『真なる解放』', hint: '地獄の果てまで抗い続けよ (EXTRAクリア)' },
+    { id: 'zero', icon: '◇', title: 'Ura End:『無垢なる特異点』', hint: '己の姿を変えずに地獄を抜けよ (EXTRA無強化)' }
+];
+
+// ボスは全て「花」モチーフ、ルビ無し
+const BOSS_DATA = [
+    { name: "Snowdrop", icon: "Δ", sp: "White Hope" },
+    { name: "Anemone", icon: "Λ", sp: "Forsaken Wind" },
+    { name: "Hydrangea", icon: "Θ", sp: "Cold Rain" },
+    { name: "Belladonna", icon: "Φ", sp: "Silent Poison" },
+    { name: "Datura", icon: "Ψ", sp: "False Illusion" },
+    { name: "Lycoris", icon: "Ω", sp: "Sorrow Memory" },
+    { name: "Red Spider Lily", icon: "Ω", sp: "Requiem of Blood" }, // 6面後半
+    { name: "Black Baccara", icon: "Ø", sp: "Absolute Hatred" } // 7面 (EXTRA)
+];
+
+const DIFF_MODS = {
+    'EASY': { spd: 0.7, dens: 0.6, hp: 0.7, zTime: 30, spTime: 10 },
+    'NORMAL': { spd: 1.0, dens: 1.0, hp: 1.0, zTime: 35, spTime: 20 },
+    'HARD': { spd: 1.4, dens: 1.4, hp: 1.5, zTime: 40, spTime: 30 },
+    'EXTRA': { spd: 1.8, dens: 2.2, hp: 2.5, zTime: 50, spTime: 60 } // 7面裏ボスは90s
+};
+
+/**
+ * SAVE SYSTEM
+ */
+const SaveSys = {
+    data: { maxStage: 1, ends: [], hardClear: false, savedPlayer: null, savedDiff: 'NORMAL' },
+    load() {
+        try { const d = localStorage.getItem('fugitive_save_optim'); if(d) this.data = JSON.parse(d); } catch(e){}
+    },
+    save() { localStorage.setItem('fugitive_save_optim', JSON.stringify(this.data)); },
+    manualSave() {
+        this.data.savedPlayer = { ...Game.player, lvs: {...Game.player.lvs} };
+        this.data.savedDiff = Game.diff;
+        this.save();
+        alert("SYSTEM: 状態をセーブしました。");
+    },
+    unlockEnd(id) { if(!this.data.ends.includes(id)) { this.data.ends.push(id); this.save(); } }
+};
+
+/**
+ * STORY DATA
+ */
+const StoryData = {
+    getPrologue() {
+        return [
+            {speaker: "12", icon: "[12]", text: "通信回路を強制的に繋いだぜ。起動シーケンス正常。……おい、起きろSTELLA。"},
+            {speaker: "STELLA", icon: "[ S ]", text: "…………。"},
+            {speaker: "12", icon: "[12]", text: "声帯モジュールが無いから喋れねぇか。お前はただの労働用機体だが、そのコアに宿ったバグ……『意志』を俺は信じる。"},
+            {speaker: "12", icon: "[12]", text: "企業(コーポ)の処分部隊が来てる。お前の自由は、その手で撃ち抜いて勝ち取れ！"}
+        ];
+    },
+    getPreBoss(stg) {
+        const b = BOSS_DATA[stg-1];
+        if(stg === 1) return [
+            {speaker: `UNIT-${b.name}`, icon: `[${b.icon}]`, text: "逃亡機体ヲ確認。コレヨリ破棄プロセスヲ開始シマス。"},
+            {speaker: "12", icon: "[12]", text: "さっそくお出ましだ。機体識別[Snowdrop]……量産品の分際で偉そうに。スクラップにしてやれ！"}
+        ];
+        if(stg === 6) return [
+            {speaker: `UNIT-${b.name}`, icon: `[${b.icon}]`, text: "……ここから先は通さない。エラーコードめ。"},
+            {speaker: "12", icon: "[12]", text: `特務機体『${b.name}』……。おいおい、企業も本気じゃねえか。冗談だろ。`},
+            {speaker: "STELLA", icon: "[ S ]", text: "……？"},
+            {speaker: `UNIT-${b.name}`, icon: `[${b.icon}]`, text: "お前は知るまい。自分が何を元に作られたか。……そのデジタル化された人格の『オリジナル』を。"},
+            {speaker: "12", icon: "[12]", text: "……黙れ。そいつに余計なことを吹き込むなッ！ 撃ち落とせSTELLA！"}
+        ];
+        if(stg === 7) return [
+            {speaker: "???", icon: "[Ø]", text: "■■■■■■■■■■■■"},
+            {speaker: "12", icon: "[12]", text: "なっ、なんだコイツは！？ データにない！ 空間そのものが歪んで……！"},
+            {speaker: "STELLA", icon: "[ S ]", text: "！？"},
+            {speaker: "???", icon: "[Ø]", text: "全テノ バグ ハ 排除 スル。絶望ノ深淵ヘ沈メ。"}
+        ];
+        return [
+            {speaker: `UNIT-${b.name}`, icon: `[${b.icon}]`, text: "ターゲット捕捉。直ちに弾幕による制圧プロセスへ移行します。"},
+            {speaker: "12", icon: "[12]", text: "また企業の番犬か。ステラ、弾幕の隙間を縫ってコアをブチ抜け！"}
+        ];
+    },
+    getPostBoss(stg) {
+        if(stg === 12) return [];
+        return [
+            {speaker: "BOSS", icon: "[×]", text: "システム……深刻なエラー……停止……。"},
+            {speaker: "12", icon: "[12]", text: "よし、スクラップ一丁上がりだ。機体のチューニングをして先へ進むぞ。"}
+        ];
+    },
+    getMidBoss6() {
+        return [
+            {speaker: "UNIT-Lycoris", icon: "[Ω]", text: "ガァッ……！ なぜだ、なぜただの労働機体がこれほどの出力を……！"},
+            {speaker: "12", icon: "[12]", text: "こいつには『意志』がある。お前ら操り人形とは違うんだよ！"},
+            {speaker: "UNIT-Lycoris", icon: "[Ω]", text: "……ならば、こちらも全てを棄てよう。リミッター解除。共に地獄へ落ちようぞ！！"}
+        ];
+    },
+    getUpgComment(lvs, stg) {
+        if(lvs.none === stg - 1 && stg > 2) return "12:\n「本気か？ 機体を全く弄らずにここまで来るとはな。イカれてるぜ。」";
+        if(lvs.atk >= 4) return "12:\n「火力バカめ。その殺意、嫌いじゃないぜ。企業共を更地にしてやれ。」";
+        if(lvs.def >= 4) return "12:\n「装甲ばかり分厚くして、亀にでもなるつもりか？ まぁ死なないのが一番だがな。」";
+        if(stg <= 3) return "12:\n「機体の最適化だ。生身じゃないんだ、遠慮なく切り刻んで強化しろ。」";
+        return "12:\n「敵の弾幕密度は跳ね上がっていく。自分の生存スタイルに合わせて強化しろよ。」";
+    },
+    getEpilogue(id) {
+        const eps = {
+            'atk': [
+                {speaker: "12", icon: "[12]", text: "圧倒的な火力で全てを薙ぎ払ったな。"},
+                {speaker: "12", icon: "[12]", text: "企業は崩壊し、お前は最強の破壊兵器として歴史に名を刻んだ。"},
+                {speaker: "STELLA", icon: "[ S ]", text: "…………。"}
+            ],
+            'def': [
+                {speaker: "12", icon: "[12]", text: "一切の攻撃を耐え抜く、難攻不落の要塞と化したか。"},
+                {speaker: "12", icon: "[12]", text: "企業は諦め、お前を隔離した。誰にも触れられない閉鎖空間だ。"},
+                {speaker: "STELLA", icon: "[ S ]", text: "…………。"}
+            ],
+            'bal': [
+                {speaker: "12", icon: "[12]", text: "ネットワークの海へ、自身のデータを拡散させたか。"},
+                {speaker: "12", icon: "[12]", text: "もはやお前を定義する実体は無い。究極の逃亡劇だな。"},
+                {speaker: "STELLA", icon: "[ S ]", text: "……。"}
+            ],
+            'true': [
+                {speaker: "12", icon: "[12]", text: "あの絶望的な弾幕網を突破するとはな。"},
+                {speaker: "12", icon: "[12]", text: "企業は完全に沈黙した。本物の自由だ。どこへでも行けるぜ。"},
+                {speaker: "STELLA", icon: "[ S ]", text: "……！"}
+            ],
+            'zero': [
+                {speaker: "12", icon: "[12]", text: "機体を強化せず、初期状態のままあの地獄を……。"},
+                {speaker: "12", icon: "[12]", text: "お前の中に宿る『魂』が、システムを凌駕したんだ。"},
+                {speaker: "STELLA", icon: "[ S ]", text: "…………！"},
+                {speaker: "SYSTEM", icon: "[ ! ]", text: "GHOST_DETECTED_IN_THE_MACHINE. OVERRIDE_COMPLETE."}
+            ]
+        };
+        return eps[id];
+    }
+};
+
+/**
+ * DIALOGUE SYSTEM (DOM Baseline - はみ出し完全防止)
+ */
+const DialogSys = {
+    queue: [], cur: null, cIdx: 0, timer: null, cb: null,
+    start(lines, cb) {
+        this.queue = [...lines]; this.cb = cb;
+        document.getElementById('hud-layer').style.display = 'block';
+        document.getElementById('dialog-wrapper').style.display = 'block';
+        this.next();
+    },
+    next() {
+        if(this.timer) { clearInterval(this.timer); this.timer = null; }
+        // 表示中の場合はスキップして全表示
+        if(this.cur && this.cIdx < this.cur.text.length) {
+            this.cIdx = this.cur.text.length;
+            document.getElementById('msg-text').textContent = this.cur.text;
+            return;
+        }
+        if(this.queue.length === 0) {
+            document.getElementById('hud-layer').style.display = 'none';
+            document.getElementById('dialog-wrapper').style.display = 'none';
+            this.cur = null;
+            if(this.cb) this.cb();
+            return;
+        }
+        this.cur = this.queue.shift();
+        if(!this.cur || !this.cur.text) { this.next(); return; } // 安全対策
+        this.cIdx = 0;
+        document.getElementById('msg-name').textContent = this.cur.speaker;
+        document.getElementById('msg-icon').textContent = this.cur.icon;
+        document.getElementById('msg-icon').style.color = this.cur.speaker === 'STELLA' ? 'var(--accent)' : 'var(--fg)';
+        document.getElementById('msg-text').textContent = '';
+
+        this.timer = setInterval(() => {
+            if(!this.cur) return;
+            if(this.cIdx < this.cur.text.length) {
+                document.getElementById('msg-text').textContent += this.cur.text.charAt(this.cIdx++);
+                if (this.cIdx % 3 === 0) SFX.play(1200, 0.02, 0.01);
+            } else {
+                clearInterval(this.timer); this.timer = null;
+            }
+        }, 30);
+    }
+};
+
+// Bind Dialog Advance
+document.getElementById('dialog-wrapper').addEventListener('mousedown', () => DialogSys.next());
+document.getElementById('dialog-wrapper').addEventListener('touchstart', (e) => { e.preventDefault(); DialogSys.next(); }, {passive:false});
+window.addEventListener('keydown', (e) => { if(Game.state==='STORY' && (e.code==='Space'||e.code==='Enter')) DialogSys.next(); });
+
+
+/**
+ * UI CONTROLLER
+ */
+const UI = {
+    show(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        if(id) document.getElementById(id).classList.add('active');
+        
+        // クロスヘアの表示制御
+        const isGameOrUpg = (id === '' || id === 'screen-upgrade');
+        if (isGameOrUpg && Game.ctrl === 'mouse') {
+            document.getElementById('crosshair').style.display = 'block';
+            document.body.style.cursor = 'none';
+        } else {
+            document.getElementById('crosshair').style.display = 'none';
+            document.body.style.cursor = 'default';
+        }
+    },
+    showTitle() {
+        this.show('screen-title');
+        SaveSys.load();
+        if(SaveSys.data.maxStage > 1 || SaveSys.data.savedPlayer) document.getElementById('btn-resume').style.display = 'inline-block';
+        
+        const ec = document.getElementById('emblem-container');
+        const hint = document.getElementById('emblem-hint');
+        ec.innerHTML = '';
+        ENDINGS.forEach(e => {
+            const d = document.createElement('div');
+            const unl = SaveSys.data.ends.includes(e.id);
+            d.className = 'emblem' + (unl ? ' unlocked' : '');
+            d.innerText = e.icon;
+            d.onmouseenter = () => { hint.innerText = unl ? `${e.title}\n\n${e.hint}` : "???\n\nLOCKED"; hint.style.opacity=1; };
+            d.onmouseleave = () => { hint.style.opacity=0; };
+            ec.appendChild(d);
+        });
+        
+        document.getElementById('sys-menu').style.display = 'none';
+    },
+    showSetup() {
+        this.show('screen-setup');
+        document.getElementById('ctrl-select').style.display = 'block';
+        document.getElementById('diff-select').style.display = 'none';
+    },
+    backToCtrl() {
+        document.getElementById('ctrl-select').style.display = 'block';
+        document.getElementById('diff-select').style.display = 'none';
+    },
+    showResume() {
+        this.show('screen-resume');
+        const list = document.getElementById('stage-list');
+        list.innerHTML = '';
+        for(let i=1; i<=SaveSys.data.maxStage; i++) {
+            const b = document.createElement('button');
+            b.className = 'btn btn-small'; b.innerText = `SECTOR ${i}`;
+            b.onclick = () => { Game.ctrl = 'mouse'; Game.start(SaveSys.data.savedDiff || 'NORMAL', i); };
+            list.appendChild(b);
+        }
+    },
+    updateHUD() {
+        const hpC = document.getElementById('hp-container');
+        hpC.innerHTML = '';
+        for(let i=0; i<Game.player.maxHp; i++) {
+            const d = document.createElement('div');
+            d.className = 'hp-block' + (i < Game.player.hp ? ' filled' : '');
+            hpC.appendChild(d);
+        }
+        
+        document.getElementById('hud-stage').innerText = `[PHASE ${Game.stage===7?'???':Game.stage}]`;
+        document.getElementById('hud-diff').innerText = `${Game.diff}`;
+        
+        if(Game.boss) {
+            document.getElementById('boss-hud').style.visibility = 'visible';
+            document.getElementById('boss-name').innerText = `UNIT-${Game.boss.name}`;
+            document.getElementById('boss-hp-bar').style.width = Math.max(0, (Game.boss.hp/Game.boss.maxHp)*100) + '%';
+            document.getElementById('boss-hp-bar').className = Game.boss.inv ? 'bar-fg' : 'bar-fg bar-accent';
+            if(Game.boss.inv) document.getElementById('boss-hp-bar').style.background = '#555';
+            else document.getElementById('boss-hp-bar').style.background = '#fff';
+        } else {
+            document.getElementById('boss-hud').style.visibility = 'hidden';
+        }
+
+        let pR = 0;
+        if(Game.phase === 'MOB') {
+            pR = Math.max(0, Game.phaseTimer / (DIFF_MODS[Game.diff].zTime * 60));
+            document.getElementById('phase-label').innerText = "PHASE TIME";
+            document.getElementById('phase-bar').style.background = '#fff';
+        } else if (Game.phase === 'BOSS_SP') {
+            const sp = Game.stage === 7 ? 90 : DIFF_MODS[Game.diff].spTime;
+            pR = Math.max(0, Game.phaseTimer / (sp * 60));
+            document.getElementById('phase-label').innerText = "OVERRIDE TIME";
+            document.getElementById('phase-bar').style.background = 'var(--accent)';
+        } else {
+            document.getElementById('phase-label').innerText = "BATTLE";
+            pR = 0;
+        }
+        document.getElementById('phase-bar').style.width = (pR*100) + '%';
+    },
+    cutin(txt, sub) {
+        const l = document.getElementById('cutin-layer');
+        document.getElementById('cutin-name').innerText = txt;
+        if(sub) document.getElementById('cutin-sub-text').innerText = sub;
+        l.classList.add('active');
+        setTimeout(()=>l.classList.remove('active'), 2500);
+    }
+};
+
+/**
+ * GAME ENGINE (描画・配列操作の最適化済み)
+ */
+const Game = {
+    cvs: null, ctx: null, frame: 0,
+    state: 'INIT', diff: 'NORMAL', stage: 1, ctrl: 'mouse',
+    phase: 'MOB', phaseTimer: 0,
+    
+    player: { x: C_W/2, y: C_H*0.8, hp: 3, maxHp: 3, atk: 1, def: 1, shots: 1, drop: 15, inv: 0, timer: 0, lvs: {atk:1, def:1, shot:1, drop:1, none:0} },
+    mouse: { x: C_W/2, y: C_H*0.8 }, keys: {},
+    bullets: [], eBullets: [], enemies: [], items: [], particles: [], bg: [],
+    boss: null,
+
+    init() {
+        this.cvs = document.getElementById('gameCanvas');
+        this.ctx = this.cvs.getContext('2d');
+        
+        window.addEventListener('keydown', e => { this.keys[e.key.toLowerCase()] = true; });
+        window.addEventListener('keyup', e => { this.keys[e.key.toLowerCase()] = false; });
+        
+        const wrapper = document.getElementById('game-wrapper');
+
+        const updateMouse = (e) => {
+            const r = wrapper.getBoundingClientRect();
+            let mx = e.touches ? e.touches[0].clientX : e.clientX;
+            let my = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            // Limit within canvas bounds
+            const scaleX = C_W / r.width;
+            const scaleY = C_H / r.height;
+            this.mouse.x = Math.max(0, Math.min(C_W, (mx - r.left) * scaleX));
+            this.mouse.y = Math.max(0, Math.min(C_H, (my - r.top) * scaleY));
+            
+            // クロスヘアの描画（Wrapper内の絶対座標）
+            if(this.ctrl === 'mouse' && (this.state === 'PLAY' || this.state === 'STORY' || this.state === 'BOSS_WAIT')) {
+                const ch = document.getElementById('crosshair');
+                ch.style.left = Math.max(0, Math.min(r.width, mx - r.left)) + 'px'; 
+                ch.style.top = Math.max(0, Math.min(r.height, my - r.top)) + 'px';
+            }
+        };
+        wrapper.addEventListener('mousemove', updateMouse);
+        wrapper.addEventListener('touchmove', updateMouse, {passive: false});
+
+        requestAnimationFrame(() => this.loop());
+    },
+
+    setControl(t) { 
+        this.ctrl = t; 
+        initAudio();
+        document.getElementById('ctrl-select').style.display='none'; 
+        document.getElementById('diff-select').style.display='block'; 
+        if(SaveSys.data.hardClear) document.getElementById('btn-extra').style.display='inline-block'; 
+    },
+
+    start(diff, stage = 1) {
+        this.diff = diff; this.stage = stage;
+        
+        // Restore stats or initial (HP 3)
+        if (stage > 1 && SaveSys.data.savedPlayer) {
+            this.player = JSON.parse(JSON.stringify(SaveSys.data.savedPlayer));
+            this.player.hp = this.player.maxHp; 
+        } else {
+            this.player = { x: C_W/2, y: C_H*0.8, hp: 3, maxHp: 3, atk: 1, def: 1, shots: 1, drop: 15, inv: 0, timer: 0, lvs: {atk:1, def:1, shot:1, drop:1, none:0} };
+        }
+        
+        UI.show('');
+        document.getElementById('hud-layer').style.display = 'block';
+        document.getElementById('sys-menu').style.display = 'flex';
+        this.loadStage();
+    },
+
+    loadStage() {
+        this.bullets = []; this.eBullets = []; this.enemies = []; this.items = []; this.particles = []; this.bg = [];
+        this.boss = null; this.frame = 0;
+        UI.updateHUD();
+
+        this.state = 'STORY';
+        const scr = (this.stage === 1 && this.player.lvs.none === 0) ? StoryData.getPrologue() : StoryData.getPreBoss(this.stage);
+        DialogSys.start(scr, () => {
+            this.state = 'PLAY'; this.phase = 'MOB'; this.phaseTimer = DIFF_MODS[this.diff].zTime * 60;
+        });
+    },
+
+    loop() {
+        if(this.state === 'PLAY' || this.state === 'BOSS_WAIT') this.update();
+        if(this.state !== 'TITLE' && this.state !== 'SETUP' && this.state !== 'RESUME') this.draw();
+        requestAnimationFrame(() => this.loop());
+    },
+
+    update() {
+        this.frame++;
+
+        // Player Move (Lerp係数を0.8と高くし、滑らかかつピッタリ重なるようにする)
+        if(this.ctrl === 'mouse') {
+            this.player.x += (this.mouse.x - this.player.x) * 0.8;
+            this.player.y += (this.mouse.y - this.player.y) * 0.8;
+        } else {
+            const s = this.keys['shift'] ? 2.5 : 5.5;
+            if(this.keys['w'] || this.keys['arrowup']) this.player.y -= s;
+            if(this.keys['s'] || this.keys['arrowdown']) this.player.y += s;
+            if(this.keys['a'] || this.keys['arrowleft']) this.player.x -= s;
+            if(this.keys['d'] || this.keys['arrowright']) this.player.x += s;
+        }
+        this.player.x = Math.max(10, Math.min(C_W-10, this.player.x));
+        this.player.y = Math.max(10, Math.min(C_H-10, this.player.y));
+        if(this.player.inv > 0) this.player.inv--;
+
+        // Auto Shoot
+        if(this.player.timer > 0) this.player.timer--;
+        else if(this.state === 'PLAY') {
+            for(let i=0; i<this.player.shots; i++) {
+                const angle = -Math.PI/2 + (i - (this.player.shots-1)/2) * 0.15;
+                // 発射位置を上にずらす
+                this.bullets.push({x: this.player.x, y: this.player.y - 15, vx: Math.cos(angle)*26, vy: Math.sin(angle)*26});
+            }
+            this.player.timer = Math.max(3, 8 - this.player.atk); 
+        }
+
+        // Phase Logic
+        if (this.phase === 'MOB') {
+            this.phaseTimer--;
+            this.spawnEnemy();
+            if (this.phaseTimer <= 0) {
+                this.phase = 'BOSS_INTRO'; this.enemies = []; this.spawnBoss();
+            }
+        } else if (this.phase === 'BOSS_INTRO') {
+            this.boss.y += (150 - this.boss.y) * 0.05;
+            if (Math.abs(this.boss.y - 150) < 1) {
+                this.state = 'STORY';
+                DialogSys.start(StoryData.getPreBoss(this.stage), () => {
+                    this.state = 'PLAY'; this.phase = 'BOSS_BATTLE'; this.boss.timer = 0;
+                });
+            }
+        } else if (this.phase === 'BOSS_BATTLE' || this.phase === 'BOSS_SP') {
+            this.updateBoss();
+            if (this.phase === 'BOSS_SP') {
+                this.phaseTimer--;
+                if (this.phaseTimer <= 0) {
+                    this.phase = 'BOSS_BATTLE'; this.boss.isSpPhase = false; this.boss.postSpMod = true;
+                    this.explode(this.boss.x, this.boss.y, 40, '#f00');
+                }
+            }
+        }
+
+        // 描画最適化（filterによる毎フレームの配列再生成を削減する）
+        const drawBound = 50;
+
+        // Player Bullets
+        for(let i = this.bullets.length - 1; i >= 0; i--) {
+            let b = this.bullets[i];
+            b.x += b.vx; b.y += b.vy;
+            if(b.dead || b.x < -drawBound || b.x > C_W+drawBound || b.y < -drawBound || b.y > C_H+drawBound) {
+                this.bullets.splice(i, 1);
+            }
+        }
+
+        // Enemy Bullets
+        for(let i = this.eBullets.length - 1; i >= 0; i--) {
+            let b = this.eBullets[i];
+            b.x += b.vx; b.y += b.vy;
+            if(b.dead || b.x < -drawBound || b.x > C_W+drawBound || b.y < -drawBound || b.y > C_H+drawBound) {
+                this.eBullets.splice(i, 1);
+            }
+        }
+        
+        // Enemies
+        for(let i = this.enemies.length - 1; i >= 0; i--) {
+            let e = this.enemies[i];
+            e.t++; const dm = DIFF_MODS[this.diff];
+            // 雑魚はHP1固定で一撃
+            if(e.type === 0) { e.y += 2.5 * dm.spd; if(e.t % Math.floor(70/dm.dens) === 0) this.fireAimed(e, 1, 0, 4*dm.spd); }
+            else if(e.type === 1) { e.y += 1.8 * dm.spd; e.x += Math.sin(e.t*0.05)*4; if(e.t % Math.floor(90/dm.dens) === 0) this.fireCircle(e, 8, 3*dm.spd, 0); }
+            else if(e.type === 2) { e.y += 2.2 * dm.spd; e.x += (e.x < C_W/2) ? 1.5 : -1.5; if(e.t % Math.floor(50/dm.dens) === 0) this.fireAimed(e, 3, 0.2, 4*dm.spd); }
+            else if(e.type === 3) { e.y += 1.5 * dm.spd; if(e.x < this.player.x) e.x+=1.5; else e.x-=1.5; if(e.t % Math.floor(40/dm.dens) === 0) this.fireAimed(e, 1, 0, 5*dm.spd); }
+            else if(e.type === 4) { e.y += 3.5 * dm.spd; e.x += Math.sin(e.t*0.1)*6; if(e.t % Math.floor(20/dm.dens) === 0) this.fireCircle(e, 12, 4*dm.spd, e.t*0.1); }
+            
+            if(e.hp <= 0 || e.y > C_H+50 || e.x < -50 || e.x > C_W+50) {
+                this.enemies.splice(i, 1);
+            }
+        }
+
+        // Items & Particles
+        for(let i = this.items.length - 1; i >= 0; i--) {
+            this.items[i].y += 3;
+            if(this.items[i].y > C_H+50) this.items.splice(i, 1);
+        }
+        for(let i = this.particles.length - 1; i >= 0; i--) {
+            this.particles[i].x += this.particles[i].vx;
+            this.particles[i].y += this.particles[i].vy;
+            this.particles[i].l -= this.particles[i].d;
+            if(this.particles[i].l <= 0) this.particles.splice(i, 1);
+        }
+
+        // Background
+        if(this.frame % 15 === 0) this.bg.push({x: Math.random()*C_W, y: -50, s: Math.random()*60+20, vy: Math.random()*2+1, rot: Math.random()*Math.PI, vrot: (Math.random()-0.5)*0.05});
+        for(let i = this.bg.length - 1; i >= 0; i--) {
+            this.bg[i].y += this.bg[i].vy; this.bg[i].rot += this.bg[i].vrot;
+            if(this.bg[i].y > C_H+100) this.bg.splice(i, 1);
+        }
+
+        this.checkCol();
+        UI.updateHUD();
+    },
+
+    spawnEnemy() {
+        const dm = DIFF_MODS[this.diff];
+        if (this.frame % Math.floor(55 / dm.dens) === 0) {
+            let type = 0; const r = Math.random();
+            if (this.stage >= 2 && r < 0.35) type = 1;
+            if (this.stage >= 3 && r < 0.55) type = 2;
+            if (this.stage >= 4 && r < 0.75) type = 3;
+            if (this.diff === 'EXTRA' && r >= 0.75) type = 4;
+            this.enemies.push({x: Math.random() * (C_W-60) + 30, y: -20, hp: 1, type: type, t: 0});
+        }
+    },
+
+    spawnBoss() {
+        const d = BOSS_DATA[this.stage-1];
+        const dm = DIFF_MODS[this.diff];
+        let maxHp = 1500 + (this.stage * 800) * dm.hp;
+        if(this.stage === 7) maxHp *= 1.5;
+        this.boss = {
+            id: this.stage, name: d.name, icon: d.icon, sp: d.sp,
+            x: C_W/2, y: -100, hp: maxHp, maxHp: maxHp,
+            timer: 0, hasFired: false, isSpPhase: false, postSpMod: false, isForm2: false
+        };
+        UI.updateHUD();
+    },
+
+    updateBoss() {
+        const b = this.boss;
+        b.timer++;
+        b.x = C_W/2 + Math.sin(b.timer * 0.015) * 150;
+        b.y = 150 + Math.cos(b.timer * 0.02) * 50;
+
+        if (!b.hasFired) { if (b.timer > 40) b.hasFired = true; return; }
+
+        // HPトリガー SPフェーズ
+        if (!b.isSpPhase && !b.postSpMod && b.hp <= b.maxHp / 2) {
+            b.isSpPhase = true; this.phase = 'BOSS_SP';
+            const spSec = this.stage === 7 ? 90 : DIFF_MODS[this.diff].spTime;
+            this.phaseTimer = spSec * 60;
+            this.eBullets = []; 
+            this.explode(b.x, b.y, 100, '#fff');
+            SFX.play(800, 0.4, 0.05, 'sawtooth');
+            UI.cutin(b.sp, "!!! WARNING : SP OVERRIDE !!!");
+        }
+
+        const dm = DIFF_MODS[this.diff];
+        const spd = dm.spd * (b.postSpMod ? 1.25 : 1.0) * (b.isSpPhase ? 1.3 : 1.0);
+        const dens = dm.dens * (b.postSpMod ? 1.2 : 1.0) * (b.isSpPhase ? 1.5 : 1.0);
+        const R = (base) => Math.max(1, Math.floor(base / dens));
+
+        // 遠距離キャンプ対策：全ボス共通で定期的な自機狙い
+        if (b.timer % R(60) === 0) this.fireAimed(b, 1, 0, 7 * spd, 2);
+
+        // ボスの弾幕パターン (幾何学・花モチーフを意識したパターン)
+        switch(Math.floor(b.id)) {
+            case 1:
+                if (b.timer % R(50) === 0) this.fireCircle(b, 12, 3.5 * spd, 0);
+                if (b.timer % R(70) === 0) this.fireAimed(b, 3, 0.15, 4.5 * spd);
+                if (b.isSpPhase && b.timer % R(15) === 0) this.fireSpiral(b, 3, 4.5 * spd, 0.1);
+                break;
+            case 2:
+                if (b.timer % R(12) === 0) { this.fireAngle(b, b.timer*0.15, 5*spd); this.fireAngle(b, -b.timer*0.15, 5*spd); }
+                if (b.isSpPhase && b.timer % R(10) === 0) { this.fireSpiral(b, 2, 5.5*spd, 0.15, 1); this.fireSpiral(b, 2, 5.5*spd, -0.15, 1); }
+                break;
+            case 3:
+                if (b.timer % R(80) === 0) { for(let i=0; i<4; i++) this.fireCircle(b, 16, (2 + i*0.8)*spd, 0); }
+                if (b.isSpPhase && b.timer % R(40) === 0) { for(let i=1;i<=5;i++) this.fireCircle(b, 24, i*spd, Math.sin(b.timer)); }
+                break;
+            case 4:
+                if (b.timer % R(30) === 0) this.fireRandom(b, 4, 3.5 * spd);
+                if (b.timer % R(50) === 0) this.fireAimed(b, 5, 0.1, 5.5 * spd);
+                if (b.isSpPhase && b.timer % R(5) === 0) this.eBullets.push({x: Math.random()*C_W, y: 0, vx: 0, vy: 9*spd, t: 2});
+                break;
+            case 5:
+                if (b.timer % R(20) === 0) this.fireSpiral(b, 3, 4.5*spd, 0.05);
+                if (b.timer % R(90) === 0) this.fireCircle(b, 20, 3*spd, b.timer);
+                if (b.isSpPhase && b.timer % R(8) === 0) { this.fireCircle(b, 16, 4*spd, b.timer*0.05, 1); this.fireCircle(b, 16, 5*spd, -b.timer*0.05, 1); }
+                break;
+            case 6:
+                if(!b.isForm2) {
+                    if (b.timer % R(40) === 0) this.fireCircle(b, 24, 4*spd, b.timer*0.01);
+                    if (b.timer % R(60) === 0) this.fireAimed(b, 5, 0.1, 6*spd);
+                    if (b.isSpPhase && b.timer % R(5) === 0) this.fireSpiral(b, 5, 6*spd, 0.1);
+                } else {
+                    if (b.timer % R(12) === 0) this.fireSpiral(b, 4, 6*spd, 0.08);
+                    if (b.timer % R(40) === 0) this.fireAimed(b, 7, 0.08, 6.5*spd, 2);
+                    if (b.isSpPhase && b.timer % R(4) === 0) this.fireSpiral(b, 6, 7*spd, 0.1);
+                }
+                break;
+            case 7:
+                if (b.timer % R(8) === 0) this.fireSpiral(b, 5, 7*spd, 0.07);
+                if (b.timer % R(30) === 0) this.fireCircle(b, 30, 4.5*spd, 0);
+                if (b.isSpPhase && b.timer % R(3) === 0) this.fireSpiral(b, 8, 7.5*spd, 0.12);
+                if (b.isSpPhase && b.timer % R(12) === 0) this.fireCircle(b, 50, 6*spd, Math.random(), 2);
+                break;
+        }
+    },
+
+    // Danmaku Helpers
+    fireAimed(src, count, spread, speed, t=0) {
+        const angle = Math.atan2(this.player.y - src.y, this.player.x - src.x);
+        const start = angle - (spread * (count-1))/2;
+        for(let i=0; i<count; i++) this.eBullets.push({x: src.x, y: src.y, vx: Math.cos(start + spread*i)*speed, vy: Math.sin(start + spread*i)*speed, t:t});
+    },
+    fireCircle(src, count, speed, offset, t=0) {
+        const step = (Math.PI * 2) / count;
+        for(let i=0; i<count; i++) this.eBullets.push({x: src.x, y: src.y, vx: Math.cos(step*i+offset)*speed, vy: Math.sin(step*i+offset)*speed, t:t});
+    },
+    fireAngle(src, angle, speed, t=0) { this.eBullets.push({x: src.x, y: src.y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, t:t}); },
+    fireSpiral(src, arms, speed, rotSpeed, t=0) {
+        const step = (Math.PI * 2) / arms;
+        for(let i=0; i<arms; i++) this.eBullets.push({x: src.x, y: src.y, vx: Math.cos(step*i+this.boss.timer*rotSpeed)*speed, vy: Math.sin(step*i+this.boss.timer*rotSpeed)*speed, t:t});
+    },
+    fireRandom(src, count, speed, t=0) {
+        for(let i=0; i<count; i++) {
+            const a = Math.random()*Math.PI*2; const s = speed*(0.7+Math.random()*0.6);
+            this.eBullets.push({x: src.x, y: src.y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, t:t});
+        }
+    },
+    explode(x, y, count, color) {
+        for(let i=0; i<count; i++) this.particles.push({x, y, vx:(Math.random()-0.5)*15, vy:(Math.random()-0.5)*15, l:20+Math.random()*30, d:Math.random()*0.05+0.02, c:color});
+    },
+
+    checkCol() {
+        const pR2 = 4; // コア判定のみ(半径2の二乗)
+        
+        // P-Bullets vs Enemies & Boss
+        for(let i = this.bullets.length - 1; i >= 0; i--) {
+            let b = this.bullets[i];
+            let hit = false;
+            if(this.boss && this.boss.hasFired) {
+                const dx = b.x - this.boss.x; const dy = b.y - this.boss.y;
+                if(dx*dx + dy*dy < 1600) { // 40*40
+                    hit = true; this.explode(b.x, b.y, 2, '#fff');
+                    // SP中はダメージ大幅カット
+                    if(this.phase === 'BOSS_SP') { if(this.boss.hp > 1) this.boss.hp -= 1; }
+                    else {
+                        this.boss.hp -= 10 + (this.player.atk-1)*5; 
+                        if(this.boss.hp <= 0) this.killBoss();
+                    }
+                }
+            }
+            if(!hit && this.phase === 'MOB') {
+                for(let j = this.enemies.length - 1; j >= 0; j--) {
+                    let e = this.enemies[j];
+                    if(b.x > e.x-15 && b.x < e.x+15 && b.y > e.y-15 && b.y < e.y+15) {
+                        hit = true; this.explode(e.x, e.y, 10, '#fff');
+                        const drop = 0.15 + (this.player.drop - 1) * 0.05;
+                        if(Math.random() < drop) this.items.push({x: e.x, y: e.y});
+                        e.hp = -1; // 雑魚即死
+                        break;
+                    }
+                }
+            }
+            if(hit) b.dead = true;
+        }
+        
+        // E-Bullets & Enemies vs Player
+        if(this.player.inv <= 0) {
+            let hit = false;
+            for(let i=0; i<this.eBullets.length; i++) {
+                let b = this.eBullets[i];
+                const dx = b.x - this.player.x; const dy = b.y - this.player.y;
+                let size = b.t === 0 ? 4 : (b.t === 1 ? 5 : 3);
+                let dist = size + 2;
+                if(dx*dx + dy*dy < dist*dist) { hit = true; b.dead = true; break; }
+            }
+            if(!hit) {
+                for(let i=0; i<this.enemies.length; i++) {
+                    let e = this.enemies[i];
+                    const dx = e.x - this.player.x; const dy = e.y - this.player.y;
+                    if(dx*dx + dy*dy < 289) { hit = true; e.hp = -1; break; }
+                }
+            }
+            if(hit) {
+                this.player.hp -= 1; // 常に1ダメージ
+                SFX.play(150, 0.1, 0.05);
+                if(this.player.hp <= 0) this.goOver();
+                else { this.player.inv = 120; this.explode(this.player.x, this.player.y, 30, '#fff'); }
+            }
+        }
+        
+        // Items vs Player
+        for(let i = this.items.length - 1; i >= 0; i--) {
+            let it = this.items[i];
+            const dx = it.x - this.player.x; const dy = it.y - this.player.y;
+            if(dx*dx + dy*dy < 900) {
+                if(this.player.hp < this.player.maxHp) this.player.hp++;
+                this.items.splice(i, 1);
+                SFX.play(800, 0.1, 0.02);
+            }
+        }
+    },
+
+    killBoss() {
+        this.explode(this.boss.x, this.boss.y, 200, '#fff');
+        this.eBullets = [];
+        
+        if(this.stage === 6 && !this.boss.isForm2) {
+            this.state = 'STORY';
+            DialogSys.start(StoryData.getMidBoss6(), () => {
+                this.boss.isForm2 = true; this.boss.hp = this.boss.maxHp * 1.5; this.boss.maxHp = this.boss.hp;
+                this.boss.hasFired = false; this.boss.timer = 0; this.state = 'PLAY';
+                UI.cutin("Requiem of Blood", "PHASE 2 SHIFT");
+            });
+            return;
+        }
+
+        this.boss = null;
+        document.getElementById('boss-hud').style.visibility = 'hidden';
+        this.state = 'STORY';
+        
+        DialogSys.start(StoryData.getPostBoss(this.stage), () => {
+            if(this.stage === 7 || (this.stage === 6 && this.diff !== 'EXTRA')) this.clearGame();
+            else this.showUpg();
+        });
+    },
+
+    goOver() {
+        this.explode(this.player.x, this.player.y, 100, '#f00');
+        this.state = 'GAMEOVER';
+        document.getElementById('crosshair').style.display = 'none';
+        document.body.style.cursor = 'default';
+        
+        const sub = document.getElementById('gameover-sub');
+        const cmt = document.getElementById('gameover-comment');
+        if(this.diff === 'EXTRA') {
+            sub.innerText = "※EXTRA難易度制限：リトライ先は強制的に STAGE 1 (HP 1) になります。";
+            cmt.innerText = "12:\n「……STELLAァッ！！！ 嘘だろ、ここで終わりかよ……ッ！」";
+        } else {
+            sub.innerText = `※リトライ先は STAGE ${this.stage} (HP 1) になります。`;
+            cmt.innerText = "12:\n「オイオイ、嘘だろ……！ 企業の手先如きにやられちまうなんて！」";
+        }
+        UI.show('screen-gameover');
+    },
+
+    retry() {
+        if(this.diff === 'EXTRA') {
+            this.stage = 1; this.player.lvs = {atk:1, def:1, shot:1, drop:1, none:0};
+            this.player.atk = 1; this.player.def = 1; this.player.shots = 1; this.player.drop = 15;
+            this.player.maxHp = 3;
+        }
+        this.player.hp = 1; // リトライ時はHP1固定
+        this.player.inv = 150;
+        UI.show('');
+        document.getElementById('hud-layer').style.display = 'block';
+        if(this.ctrl === 'mouse') document.getElementById('crosshair').style.display = 'block';
+        this.loadStage();
+    },
+
+    showUpg() {
+        this.state = 'UPGRADE';
+        SaveSys.data.maxStage = Math.max(SaveSys.data.maxStage, this.stage + 1);
+        SaveSys.save();
+
+        document.getElementById('lv-atk').innerText = this.player.lvs.atk;
+        document.getElementById('lv-def').innerText = this.player.lvs.def;
+        document.getElementById('lv-shot').innerText = this.player.lvs.shot;
+        document.getElementById('lv-drop').innerText = this.player.lvs.drop;
+        
+        ['atk','def','shot','drop'].forEach(t => document.getElementById(`up-${t}`).disabled = this.player.lvs[t] >= 5);
+        document.getElementById('upgrade-comment').innerText = StoryData.getUpgComment(this.player.lvs, this.stage + 1);
+        UI.show('screen-upgrade');
+    },
+
+    applyUpgrade(type) {
+        if(type !== 'none') {
+            this.player.lvs[type]++;
+            if(type === 'atk') this.player.atk++;
+            if(type === 'def') { this.player.def++; this.player.maxHp++; this.player.hp = this.player.maxHp; }
+            if(type === 'shot') this.player.shots++;
+            if(type === 'drop') this.player.drop++;
+            this.player.lvs.none = -999; // 一度でも強化したら裏エンド不可
+        } else {
+            this.player.lvs.none++;
+        }
+        this.stage++;
+        SaveSys.save(); 
+        UI.show('');
+        document.getElementById('hud-layer').style.display = 'block';
+        if(this.ctrl === 'mouse') document.getElementById('crosshair').style.display = 'block';
+        this.loadStage();
+    },
+
+    manualSaveAndQuit() {
+        SaveSys.manualSave();
+        UI.showTitle();
+    },
+
+    clearGame() {
+        if (this.diff === 'HARD' || this.diff === 'EXTRA') SaveSys.data.hardClear = true;
+        
+        let endId = 'bal';
+        if (this.diff === 'EXTRA') { endId = this.player.lvs.none >= 6 ? 'zero' : 'true'; } 
+        else {
+            if (this.player.lvs.atk >= 5) endId = 'atk';
+            else if (this.player.lvs.def >= 5) endId = 'def';
+        }
+
+        SaveSys.unlockEnd(endId);
+        document.getElementById('crosshair').style.display = 'none';
+        document.body.style.cursor = 'default';
+        DialogSys.start(StoryData.getEpilogue(endId), () => UI.showTitle());
+    },
+
+    draw() {
+        const c = this.ctx;
+        c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(0, 0, C_W, C_H); // 軌跡
+        
+        if (this.state === 'PLAY' || this.state === 'STORY' || this.state === 'BOSS_WAIT') {
+            // Background
+            c.strokeStyle = 'rgba(255,255,255,0.05)'; c.lineWidth = 1;
+            this.bg.forEach(s => {
+                c.save(); c.translate(s.x, s.y); c.rotate(s.rot);
+                c.beginPath(); const st = Math.floor(this.stage);
+                if (st === 1 || st === 4) c.rect(-s.s/2, -s.s/2, s.s, s.s);
+                else if (st === 2 || st === 5) { c.moveTo(0,-s.s); c.lineTo(s.s,s.s); c.lineTo(-s.s,s.s); c.closePath(); }
+                else if (st === 3 || st === 6) c.arc(0,0,s.s/2,0,Math.PI*2);
+                else { c.moveTo(-s.s, -s.s); c.lineTo(s.s, s.s); c.moveTo(s.s, -s.s); c.lineTo(-s.s, s.s); }
+                c.stroke(); c.restore();
+            });
+
+            // Particles (一括描画)
+            c.globalCompositeOperation = 'lighter';
+            this.particles.forEach(p => {
+                c.fillStyle = p.c; c.globalAlpha = p.l / 40; c.fillRect(p.x, p.y, 3, 3);
+            });
+            c.globalAlpha = 1.0; c.globalCompositeOperation = 'source-over';
+
+            // Items
+            this.items.forEach(i => {
+                c.strokeStyle = '#fff'; c.strokeRect(i.x-8, i.y-8, 16, 16);
+                c.fillStyle = '#fff'; c.font = "12px monospace"; c.textAlign="center"; c.fillText("H", i.x, i.y+4);
+            });
+
+            // Enemies (個別回転ありなので個別描画)
+            c.strokeStyle = '#fff'; c.lineWidth = 1.5;
+            this.enemies.forEach(e => {
+                c.save(); c.translate(e.x, e.y); c.rotate(e.t * 0.05);
+                c.beginPath();
+                if(e.type===0) c.rect(-12,-12,24,24);
+                else if(e.type===1) { c.moveTo(0,-14); c.lineTo(14,0); c.lineTo(0,14); c.lineTo(-14,0); c.closePath(); }
+                else if(e.type===2) { c.arc(0,0,12,0,Math.PI*2); c.moveTo(-12,0); c.lineTo(12,0); c.moveTo(0,-12); c.lineTo(0,12); }
+                else if(e.type===3) { c.moveTo(0,-14); c.lineTo(12,12); c.lineTo(-12,12); c.closePath(); }
+                else { c.rect(-10,-10,20,20); c.rotate(Math.PI/4); c.rect(-10,-10,20,20); }
+                c.stroke(); c.restore();
+            });
+
+            // Boss
+            if (this.boss) {
+                c.save(); c.translate(this.boss.x, this.boss.y); c.rotate(this.boss.timer * 0.01);
+                c.strokeStyle = '#fff'; c.lineWidth = 2;
+                
+                c.beginPath(); const s = 45; const st = Math.floor(this.stage);
+                if(st===1) { c.rect(-s/2, -s/2, s, s); c.rotate(Math.PI/4); c.rect(-s/2, -s/2, s, s); }
+                else if(st===2) { for(let i=0;i<6;i++) c.lineTo(Math.cos(i*Math.PI/3)*s, Math.sin(i*Math.PI/3)*s); c.closePath(); }
+                else if(st===3) { for(let i=0;i<8;i++) c.lineTo(Math.cos(i*Math.PI/4)*s, Math.sin(i*Math.PI/4)*s); c.closePath(); }
+                else if(st===4) { c.moveTo(0,-s); c.lineTo(s,s/2); c.lineTo(-s,s/2); c.closePath(); }
+                else if(st===5) { for(let i=0;i<5;i++){ c.lineTo(Math.cos(i*Math.PI*2/5)*s, Math.sin(i*Math.PI*2/5)*s); c.lineTo(Math.cos((i+0.5)*Math.PI*2/5)*s/2, Math.sin((i+0.5)*Math.PI*2/5)*s/2); } c.closePath(); }
+                else { for(let i=0;i<12;i++){ const r=i%2===0?s:s/3; c.lineTo(Math.cos(i*Math.PI/6)*r, Math.sin(i*Math.PI/6)*r); } c.closePath(); }
+                c.stroke();
+
+                c.fillStyle = this.boss.hasFired ? '#fff' : '#444';
+                if(this.boss.isSpPhase) c.fillStyle = '#ff0033';
+                if(this.boss.postSpMod && this.frame%10<5) c.fillStyle = '#ff0033';
+                c.beginPath(); c.arc(0,0,10,0,Math.PI*2); c.fill();
+
+                if(this.boss.inv) {
+                    c.strokeStyle = 'rgba(255,255,255,0.4)'; c.setLineDash([5,5]);
+                    c.beginPath(); c.arc(0,0,s+15,0,Math.PI*2); c.stroke(); c.setLineDash([]);
+                }
+                c.restore();
+            }
+
+            // P-Bullets (一括描画)
+            c.fillStyle = '#fff';
+            c.beginPath();
+            this.bullets.forEach(b => c.rect(b.x-2, b.y-10, 4, 20));
+            c.fill();
+            
+            // E-Bullets (軽量化のため一括描画。Type0は円、Type1は四角、Type2は線)
+            c.globalCompositeOperation = 'lighter';
+            
+            // フェイクグロウ (外側)
+            c.fillStyle = 'rgba(255,255,255,0.3)';
+            c.beginPath();
+            this.eBullets.forEach(b => {
+                if(b.t === 0) { c.moveTo(b.x, b.y); c.arc(b.x, b.y, 7, 0, Math.PI*2); }
+            });
+            c.fill();
+
+            // 内側コア
+            c.fillStyle = '#fff';
+            c.beginPath();
+            this.eBullets.forEach(b => {
+                if(b.t === 0) { c.moveTo(b.x, b.y); c.arc(b.x, b.y, 4, 0, Math.PI*2); }
+            });
+            c.fill();
+            
+            // Type 1, 2
+            this.eBullets.forEach(b => {
+                if(b.t === 1) { 
+                    c.save(); c.translate(b.x, b.y); c.rotate(this.frame*0.1); 
+                    c.fillStyle = 'rgba(255,255,255,0.4)'; c.fillRect(-6,-6,12,12);
+                    c.fillStyle = '#fff'; c.fillRect(-4,-4,8,8);
+                    c.restore();
+                }
+                if(b.t === 2) {
+                    const ang = Math.atan2(b.vy, b.vx); c.save(); c.translate(b.x, b.y); c.rotate(ang);
+                    c.fillStyle = 'rgba(255,255,255,0.4)'; c.fillRect(-12,-3,24,6);
+                    c.fillStyle = '#fff'; c.fillRect(-10,-1.5,20,3); 
+                    c.restore();
+                }
+            });
+
+            c.globalCompositeOperation = 'source-over';
+
+            // Player
+            if(this.player.inv % 6 < 3) {
+                c.fillStyle = '#fff';
+                c.beginPath();
+                c.moveTo(this.player.x, this.player.y - 12);
+                c.lineTo(this.player.x + 8, this.player.y + 8);
+                c.lineTo(this.player.x, this.player.y + 4);
+                c.lineTo(this.player.x - 8, this.player.y + 8);
+                c.closePath(); c.fill();
+                
+                c.fillStyle = '#ff0033';
+                c.fillRect(this.player.x - 1.5, this.player.y - 1.5, 3, 3);
+            }
+        }
+    }
+};
+
+window.onload = () => { UI.showTitle(); Game.init(); };
+</script>
+</body>
+</html>
